@@ -5,16 +5,19 @@ use sdl2::render::Canvas;
 use sdl2::video::Window;
 use std::time::Duration;
 
-const WIDTH: usize = 600;
-const HEIGHT: usize = 600;
-const CYCLES_TO_DIE: usize = 25;
+const WIDTH: usize = 800;
+const HEIGHT: usize = 800;
+const SCALE: f32 = 10.0;
+const CYCLES_TO_DIE: usize = 8;
 
+#[derive(Clone)]
 enum CellState {
     Alive,
     Dying(usize),
     Dead,
 }
 
+#[derive(Clone)]
 struct Cell {
     state: CellState,
     neighbor_count: usize,
@@ -35,37 +38,27 @@ impl Cell {
         }
     }
 
-    pub fn alive(neighbor_count: usize) -> Self {
+    pub fn alive() -> Self {
         Cell {
             state: CellState::Alive,
-            neighbor_count: neighbor_count,
-        }
-    }
-
-    pub fn dying(neighbor_count: usize, cycles_left: usize) -> Self {
-        Cell {
-            state: CellState::Dying(cycles_left),
-            neighbor_count: neighbor_count,
+            neighbor_count: 0,
         }
     }
 }
 
 impl Board {
     pub fn new(width: usize, height: usize) -> Self {
-        let mut cells = vec![Cell::dead(); width * height];
-
-        cells[10 * width + 12] = Cell::alive(0);
-        cells[11 * width + 12] = Cell::alive(0);
-        cells[11 * width + 10] = Cell::alive(0);
-        cells[12 * width + 11] = Cell::alive(0);
-        cells[12 * width + 12] = Cell::alive(0);
-
-        Self {
+        let cells = vec![Cell::dead(); width * height];
+        let mut board = Self {
             generation: 0,
             width: width,
             height: height,
             cells: cells,
-        }
+        };
+
+        board.add_glider_gun();
+
+        board
     }
 
     pub fn step(self: &mut Self) {
@@ -73,23 +66,23 @@ impl Board {
             match cell.state {
                 CellState::Alive => {
                     if cell.neighbor_count < 2 || cell.neighbor_count > 3 {
-                        *cell = Cell::dying(cell.neighbor_count, CYCLES_TO_DIE)
+                        cell.state = CellState::Dying(CYCLES_TO_DIE)
                     }
                 }
                 CellState::Dying(cycles_left) => {
                     if cell.neighbor_count == 3 {
-                        *cell = Cell::alive(cell.neighbor_count)
+                        cell.state = CellState::Alive
                     } else {
                         if cycles_left == 0 {
-                            *cell = Cell::dead()
+                            cell.state = CellState::Dead
                         } else {
-                            *cell = Cell::dying(cell.neighbor_count, cycles_left - 1)
+                            cell.state = CellState::Dying(cycles_left - 1)
                         }
                     }
                 }
                 CellState::Dead => {
                     if cell.neighbor_count == 3 {
-                        *cell = Cell::alive(cell.neighbor_count)
+                        cell.state = CellState::Alive
                     }
                 }
             }
@@ -152,12 +145,57 @@ impl Board {
             })
             .count();
     }
+
+    fn add_glider_gun(self: &mut Self) {
+        for (x, y) in [
+            (25, 1),
+            (23, 2),
+            (25, 2),
+            (13, 3),
+            (14, 3),
+            (21, 3),
+            (22, 3),
+            (35, 3),
+            (36, 3),
+            (12, 4),
+            (16, 4),
+            (21, 4),
+            (22, 4),
+            (35, 4),
+            (36, 4),
+            (1, 5),
+            (2, 5),
+            (11, 5),
+            (17, 5),
+            (21, 5),
+            (22, 5),
+            (1, 6),
+            (2, 6),
+            (11, 6),
+            (15, 6),
+            (17, 6),
+            (18, 6),
+            (23, 6),
+            (25, 6),
+            (11, 7),
+            (17, 7),
+            (25, 7),
+            (12, 8),
+            (16, 8),
+            (13, 9),
+            (14, 9),
+        ]
+        .iter()
+        {
+            self.cells[x + y * self.width] = Cell::alive();
+        }
+    }
 }
 
 fn draw(mut canvas: &mut Canvas<Window>, board: &mut Board) {
     board.generation += 1;
 
-    canvas.set_draw_color(Color::RGB(0, 0, 0));
+    canvas.set_draw_color(Color::RGB(255, 255, 255));
     canvas.clear();
 
     board.update_live_neighbor_counts();
@@ -166,10 +204,11 @@ fn draw(mut canvas: &mut Canvas<Window>, board: &mut Board) {
     for (index, cell) in board.cells.iter().enumerate() {
         match cell.state {
             CellState::Alive => {
-                draw_cell(&mut canvas, board, index, Color::RGB(255, 255, 255));
+                draw_cell(&mut canvas, board, index, Color::RGB(0, 0, 0));
             }
             CellState::Dying(cycles_left) => {
-                let intensity = (255.0 * 0.3 * (cycles_left as f32) / (CYCLES_TO_DIE as f32)) as u8;
+                let percent_done: f32 = (cycles_left as f32) / (CYCLES_TO_DIE as f32);
+                let intensity: u8 = ((-0.25 * percent_done).exp() * 255.0) as u8;
                 draw_cell(
                     &mut canvas,
                     board,
@@ -203,7 +242,7 @@ pub fn main() -> Result<(), String> {
     let mut event_pump = sdl_context.event_pump().unwrap();
     let mut board = Board::new(WIDTH, HEIGHT);
 
-    canvas.set_scale(16.0, 16.0)?;
+    canvas.set_scale(SCALE, SCALE)?;
 
     'running: loop {
         draw(&mut canvas, &mut board);
