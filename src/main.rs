@@ -51,9 +51,9 @@ impl Board {
         let cells = vec![Cell::dead(); width * height];
         let mut board = Self {
             generation: 0,
-            width: width,
-            height: height,
-            cells: cells,
+            width,
+            height,
+            cells,
         };
 
         board.add_glider_gun();
@@ -72,12 +72,10 @@ impl Board {
                 CellState::Dying(cycles_left) => {
                     if cell.neighbor_count == 3 {
                         cell.state = CellState::Alive
+                    } else if cycles_left == 0 {
+                        cell.state = CellState::Dead
                     } else {
-                        if cycles_left == 0 {
-                            cell.state = CellState::Dead
-                        } else {
-                            cell.state = CellState::Dying(cycles_left - 1)
-                        }
+                        cell.state = CellState::Dying(cycles_left - 1)
                     }
                 }
                 CellState::Dead => {
@@ -106,7 +104,7 @@ impl Board {
         let x = index.wrapping_rem(self.width) as i32;
         let y = index.wrapping_div(self.width) as i32;
 
-        return (x, y);
+        (x, y)
     }
 
     fn coordinates_to_index(self: &Self, x: i32, y: i32) -> Option<usize> {
@@ -118,7 +116,7 @@ impl Board {
             return None;
         }
 
-        return Some((y as usize) * self.width + (x as usize));
+        Some((y as usize) * self.width + (x as usize))
     }
 
     fn live_neighbor_count(self: &Self, index: usize) -> usize {
@@ -134,7 +132,7 @@ impl Board {
             self.coordinates_to_index(x + 1, y + 1),
         ];
 
-        return cell_indices
+        cell_indices
             .iter()
             .filter(|maybe_index| match maybe_index {
                 Some(index) => match self.cells[*index].state {
@@ -143,7 +141,7 @@ impl Board {
                 },
                 None => false,
             })
-            .count();
+            .count()
     }
 
     fn add_glider_gun(self: &mut Self) {
